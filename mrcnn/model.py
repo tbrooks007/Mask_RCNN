@@ -326,6 +326,10 @@ class ProposalLayer(KE.Layer):
             return proposals
         proposals = utils.batch_slice([boxes, scores], nms,
                                       self.config.IMAGES_PER_GPU)
+
+        proposals = tf.reshape(proposals, [-1, self.proposal_count, 4])
+        scores = tf.reshape(scores, [-1, self.proposal_count])
+
         return proposals
 
     def compute_output_shape(self, input_shape):
@@ -770,7 +774,8 @@ def refine_detections_graph(rois, probs, deltas, window, config):
     # Coordinates are normalized.
     detections = tf.concat([
         tf.gather(refined_rois, keep),
-        tf.to_float(tf.gather(class_ids, keep))[..., tf.newaxis],
+        #tf.to_float(tf.gather(class_ids, keep))[..., tf.newaxis],
+        tf.cast(tf.gather(class_ids, keep), tf.float32)[..., tf.newaxis],
         tf.gather(class_scores, keep)[..., tf.newaxis]
         ], axis=1)
 
@@ -2104,6 +2109,7 @@ class MaskRCNN():
         # TODO: remove in about 6 months (end of 2018)
         try:
             from keras.engine import saving
+            from tensorflow.python.keras.saving import hdf5_format
         except ImportError:
             # Keras before 2.2 used the 'topology' namespace.
             from keras.engine import topology as saving
@@ -2127,10 +2133,13 @@ class MaskRCNN():
         if exclude:
             layers = filter(lambda l: l.name not in exclude, layers)
 
-        if by_name:
-            saving.load_weights_from_hdf5_group_by_name(f, layers)
-        else:
-            saving.load_weights_from_hdf5_group(f, layers)
+        keras_model.load_weights(filepath, by_name=by_name)
+        # if by_name:
+        #     #saving.load_weights_from_hdf5_group_by_name(f, layers)
+        #     hdf5_format.load_weights_from_hdf5_group(f, layers)
+        # else:
+        #     # saving.load_weights_from_hdf5_group(f, layers)
+        #     hdf5_format.load_weights_from_hdf5_group(f, layers)
         if hasattr(f, 'close'):
             f.close()
 
