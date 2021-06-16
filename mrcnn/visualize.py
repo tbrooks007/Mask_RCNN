@@ -32,6 +32,85 @@ from mrcnn import utils
 #  Visualization
 ############################################################
 
+# https://github.com/jysh1214/Mask-RCNN-remove-background/blob/master/rcnn_remove_background.py
+
+def apply_mask_2(image, mask):
+    image[:, :, 0] = np.where(
+        mask == 0,
+        125,
+        image[:, :, 0]
+    )
+    image[:, :, 1] = np.where(
+        mask == 0,
+        12,
+        image[:, :, 1]
+    )
+    image[:, :, 2] = np.where(
+        mask == 0,
+        15,
+        image[:, :, 2]
+    )
+    return image
+
+
+def display_instances2(image, boxes, masks, ids, names, scores):
+    """
+    Used to show the object detection result in original image.
+    """
+    # max_area will save the largest object for all the detection results
+    max_area = 0
+
+    # n_instances saves the amount of all objects
+    n_instances = boxes.shape[0]
+
+    if not n_instances:
+        print('NO INSTANCES TO DISPLAY')
+    else:
+        assert boxes.shape[0] == masks.shape[-1] == ids.shape[0]
+
+    for i in range(n_instances):
+        if not np.any(boxes[i]):
+            continue
+
+        # compute the square of each object
+        y1, x1, y2, x2 = boxes[i]
+        square = (y2 - y1) * (x2 - x1)
+
+        # use label to select person object from all the 80 classes in COCO dataset
+        label = names[ids[i]]
+        if label == 'person':
+            # save the largest object in the image as main character
+            # other people will be regarded as background
+            if square > max_area:
+                max_area = square
+                mask = masks[:, :, i]
+            else:
+                continue
+        else:
+            continue
+
+        # apply mask for the image
+    # by mistake you put apply_mask inside for loop or you can write continue in if also
+    image = apply_mask_2(image, mask)
+
+    return image
+
+
+def remove_background(image):
+    image = image.convert('RGBA')
+    L, H = image.size
+    color_0 = image.getpixel((0, 0))
+    for h in range(H):
+        for l in range(L):
+            dot = (l, h)
+            color_1 = image.getpixel(dot)
+            if color_1 == color_0:
+                color_1 = color_1[:-1] + (0,)
+                image.putpixel(dot, color_1)
+
+    return image
+
+
 def display_images(images, titles=None, cols=4, cmap=None, norm=None,
                    interpolation=None):
     """Display the given set of images, optionally with titles.
