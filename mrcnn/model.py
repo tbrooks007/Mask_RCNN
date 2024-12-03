@@ -26,9 +26,9 @@ import keras.models as KM
 from mrcnn import utils
 
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
-from distutils.version import LooseVersion
-assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
-assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
+# from distutils.version import LooseVersion
+# assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
+# assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
 
 
 ############################################################
@@ -2385,12 +2385,51 @@ class MaskRCNN():
         )
         self.epoch = max(self.epoch, epochs)
 
-    def mold_inputs(self, images):
+
+    def fpred(self, images):
         """Takes a list of images and modifies them to the format expected
         as an input to the neural network.
         images: List of image matrices [height,width,depth]. Images can have
             different sizes.
 
+        Returns 3 Numpy matrices:
+        molded_images: [N, h, w, 3]. Images resized and normalized.
+        image_metas: [N, length of meta data]. Details about each image.
+        windows: [N, (y1, x1, y2, x2)]. The portion of the image that has the
+            original image (padding excluded).
+        """
+        molded_images = []
+        image_metas = []
+        windows = []
+        for image in images:
+            # Resize image
+            # TODO: move resizing to mold_image()
+            molded_image, window, scale, padding, crop = utils.resize_image(
+                image,
+                min_dim=self.config.IMAGE_MIN_DIM,
+                min_scale=self.config.IMAGE_MIN_SCALE,
+                max_dim=self.config.IMAGE_MAX_DIM,
+                mode=self.config.IMAGE_RESIZE_MODE)
+            molded_image = mold_image(molded_image, self.config)
+            # Build image_meta
+            image_meta = compose_image_meta(
+                0, image.shape, molded_image.shape, window, scale,
+                np.zeros([self.config.NUM_CLASSES], dtype=np.int32))
+            # Append
+            molded_images.append(molded_image)
+            windows.append(window)
+            image_metas.append(image_meta)
+        # Pack into arrays
+        molded_images = np.stack(molded_images)
+        image_metas = np.stack(image_metas)
+        windows = np.stack(windows)
+        return molded_images, image_metas, windows
+
+    def mold_inputs(self, images):
+        """Takes a list of images and modifies them to the format expected
+        as an input to the neural network.
+        images: List of image matrices [height,width,depth]. Images can have
+            different sizes.
         Returns 3 Numpy matrices:
         molded_images: [N, h, w, 3]. Images resized and normalized.
         image_metas: [N, length of meta data]. Details about each image.
